@@ -248,7 +248,7 @@
 
     <!-- 1. 로그인 화면 -->
     <div id="loginView" class="login-box">
-      <h2 style="font-size: 20px; margin-bottom: 5px;">⚔️️ 용병단 접속 ⚔️</h2>
+      <h2 style="font-size: 20px; margin-bottom: 5px;">⚔ 용병단 접속 ⚔️</h2>
       <p style="font-size: 12px; color: #aaa; margin-bottom: 20px;">아이디 하나로 자동 영구 저장!</p>
 
       <form onsubmit="handleLogin(); return false;">
@@ -351,7 +351,8 @@
 
         <!-- 던전 & 보스 던전 컨트롤 영역 -->
         <div class="dungeon-control-row">
-          <button class="btn" style="border-color:#00ff66; color:#00ff66; background:#051f05;">🗡️ 던전</button>
+          <button id="normalDungeonBtn" class="btn" style="border-color:#00ff66; color:#00ff66; background:#051f05;">🗡️ 던전</button>
+          <button id="giveUpBtn" class="btn btn-danger" style="display:none; background:#1a0505;" onclick="giveUpBoss()">🏳️ 도망치기</button>
           <button class="btn" style="border-color:#ff3333; color:#ff3333; background:#1a0505;" onclick="bossChallenge()">🔥 보스 던전</button>
         </div>
       </div>
@@ -374,7 +375,7 @@
 
         <div class="panel-box">
           <div class="panel-header">
-            <span>⚔️️ 직업 전용 무기</span>
+            <span>⚔ 직업 전용 무기</span>
             <span style="color:#aaa;">가챠 뽑기</span>
           </div>
           <div style="text-align: center; padding: 15px 0;">
@@ -439,6 +440,7 @@
     let battleInterval = null;
 
     let currentStage = 1;
+    let isBossMode = false;
     let monster = { name: '슬라임', hp: 30, maxHp: 30, goldReward: 5, expReward: 10 };
 
     const monsterTypes = ['슬라임', '고블린', '코볼트', '오크', '골렘', '스켈레톤', '드래곤'];
@@ -462,6 +464,9 @@
       if (targetStage > (currentUser.maxStage || 1)) {
         alert(`아직 개척하지 않은 스테이지입니다. (최고 개척: LV.${currentUser.maxStage || 1})`);
         return;
+      }
+      if (isBossMode) {
+        giveUpBoss(); // 보스전 중 스테이지 변경 시 일반 모드로 전환
       }
       currentStage = targetStage;
       updateMonsterForStage(currentStage);
@@ -600,6 +605,13 @@
             addLog(`🎉 레벨 업! Lv.${currentUser.level} 달성!`);
           }
 
+          if (isBossMode) {
+            isBossMode = false;
+            document.getElementById('giveUpBtn').style.display = 'none';
+            document.getElementById('normalDungeonBtn').style.display = 'inline-block';
+            addLog(`🎉 보스를 처치했습니다! 일반 던전으로 전환됩니다.`);
+          }
+
           if (currentStage === (currentUser.maxStage || 1) && currentStage < 999) {
             currentUser.maxStage++;
             currentStage = currentUser.maxStage;
@@ -612,6 +624,32 @@
 
         updateUI();
       }, currentUser.attackSpeed || 1000);
+    }
+
+    function bossChallenge() {
+      isBossMode = true;
+      document.getElementById('normalDungeonBtn').style.display = 'none';
+      document.getElementById('giveUpBtn').style.display = 'inline-block';
+
+      alert('🔥 보스 던전에 입장했습니다!');
+      monster.name = `👹 STAGE ${currentStage} 보스 오크`;
+      monster.maxHp = Math.floor(300 * Math.pow(1.3, currentStage - 1));
+      monster.hp = monster.maxHp;
+      monster.goldReward = Math.floor(100 * Math.pow(1.3, currentStage - 1));
+      monster.expReward = Math.floor(150 * Math.pow(1.3, currentStage - 1));
+
+      addLog(`🔥 [STAGE ${currentStage}] 보스전에 도전합니다!`);
+      updateUI();
+    }
+
+    function giveUpBoss() {
+      isBossMode = false;
+      document.getElementById('giveUpBtn').style.display = 'none';
+      document.getElementById('normalDungeonBtn').style.display = 'inline-block';
+
+      addLog(`🏳️ 보스전을 포기하고 일반 던전으로 복귀했습니다.`);
+      updateMonsterForStage(currentStage);
+      updateUI();
     }
 
     function updateUI() {
@@ -698,16 +736,6 @@
       } else {
         alert('골드가 부족합니다! (100G 필요)');
       }
-    }
-
-    function bossChallenge() {
-      alert('🔥 보스 던전에 입장했습니다!');
-      monster.name = `👹 STAGE ${currentStage} 보스 오크`;
-      monster.maxHp = Math.floor(300 * Math.pow(1.3, currentStage - 1));
-      monster.hp = monster.maxHp;
-      monster.goldReward = Math.floor(100 * Math.pow(1.3, currentStage - 1));
-      monster.expReward = Math.floor(150 * Math.pow(1.3, currentStage - 1));
-      updateUI();
     }
 
     function openAdminModal() {
