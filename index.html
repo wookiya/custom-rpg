@@ -44,6 +44,8 @@
     .btn:hover { background-color: #00ff66; color: #000; }
     .btn-danger { border-color: #ff3333; color: #ff3333; }
     .btn-danger:hover { background-color: #ff3333; color: #fff; }
+    .btn-white { border-color: #ffffff; color: #ffffff; background: #111; }
+    .btn-white:hover { background-color: #ffffff; color: #000; }
     .btn-admin { border-color: #ffff00; color: #ffff00; }
     .btn-admin:hover { background-color: #ffff00; color: #000; }
 
@@ -352,7 +354,7 @@
         <!-- 던전 & 보스 던전 컨트롤 영역 -->
         <div class="dungeon-control-row">
           <button id="normalDungeonBtn" class="btn" style="border-color:#00ff66; color:#00ff66; background:#051f05;">🗡️ 던전</button>
-          <button id="giveUpBtn" class="btn btn-danger" style="display:none; background:#1a0505;" onclick="giveUpBoss()">🏳️ 도망치기</button>
+          <button id="giveUpBtn" class="btn btn-white" style="display:none;" onclick="giveUpBoss()">🏳️ 도망치기</button>
           <button class="btn" style="border-color:#ff3333; color:#ff3333; background:#1a0505;" onclick="bossChallenge()">🔥 보스 던전</button>
         </div>
       </div>
@@ -441,7 +443,7 @@
 
     let currentStage = 1;
     let isBossMode = false;
-    let monster = { name: '슬라임', hp: 30, maxHp: 30, goldReward: 5, expReward: 10 };
+    let monster = { name: '슬라임', hp: 30, maxHp: 30, atk: 3, goldReward: 5, expReward: 10 };
 
     const monsterTypes = ['슬라임', '고블린', '코볼트', '오크', '골렘', '스켈레톤', '드래곤'];
 
@@ -451,6 +453,7 @@
       monster.name = `Lv.${stageLv} ${baseName}`;
       monster.maxHp = Math.floor(30 * Math.pow(1.25, stageLv - 1));
       monster.hp = monster.maxHp;
+      monster.atk = Math.max(2, Math.floor(3 * Math.pow(1.15, stageLv - 1))); // 일반 몬스터 공격력 밸런스 조정
       monster.goldReward = Math.floor(5 * Math.pow(1.2, stageLv - 1));
       monster.expReward = Math.floor(10 * Math.pow(1.2, stageLv - 1));
     }
@@ -580,6 +583,7 @@
       addLog(`⚔️ [${currentUser.job}] 캐릭터로 사냥을 시작합니다!`);
 
       battleInterval = setInterval(() => {
+        // 1. 유저 공격 로직
         let totalAtk = currentUser.atk + currentUser.weaponAtk;
         let isCrit = currentUser.job === '도적' ? (Math.random() < 0.35) : (Math.random() < 0.15);
         let damage = isCrit ? Math.floor(totalAtk * 2) : totalAtk;
@@ -593,10 +597,37 @@
           addLog(`🗡️ ${damage} 데미지로 [${monster.name}] 타격!`);
         }
 
+        // 2. 몬스터 반격 로직 (몬스터가 살아있을 때)
+        if (monster.hp > 0) {
+          let mobDamage = monster.atk || 2;
+          currentUser.hp -= mobDamage;
+          if (currentUser.hp < 0) currentUser.hp = 0;
+          addLog(`🔻 [${monster.name}]에게 ${mobDamage} 데미지를 받았습니다!`);
+
+          // 플레이어 체력 0 이하 사망 처리
+          if (currentUser.hp <= 0) {
+            addLog(`💀 전투에서 패배하였습니다! HP를 회복하며 일반 던전으로 복귀합니다.`);
+            currentUser.hp = currentUser.maxHp; // HP 완충
+            
+            if (isBossMode) {
+              isBossMode = false;
+              document.getElementById('giveUpBtn').style.display = 'none';
+              document.getElementById('normalDungeonBtn').style.display = 'inline-block';
+            }
+            
+            updateMonsterForStage(currentStage);
+            saveToStorage();
+            updateUI();
+            return;
+          }
+        }
+
+        // 3. 몬스터 처치 로직
         if (monster.hp <= 0) {
           currentUser.gold += monster.goldReward;
           currentUser.exp += monster.expReward;
-          addLog(`⚔ [${monster.name}] 처치! (+${monster.goldReward}G / +${monster.expReward} EXP)`);
+          currentUser.hp = currentUser.maxHp; // 몬스터 처치 시 체력 회복
+          addLog(`⚔ [${monster.name}] 처치! (+${monster.goldReward}G / +${monster.expReward} EXP / HP완충)`);
 
           if (currentUser.exp >= currentUser.maxExp) {
             currentUser.level++;
@@ -632,9 +663,10 @@
       document.getElementById('giveUpBtn').style.display = 'inline-block';
 
       alert('🔥 보스 던전에 입장했습니다!');
-      monster.name = `👹 STAGE ${currentStage} 보스 오크`;
+      monster.name = `👹 Lv.${currentStage} 보스 오크`;
       monster.maxHp = Math.floor(300 * Math.pow(1.3, currentStage - 1));
       monster.hp = monster.maxHp;
+      monster.atk = Math.floor(12 * Math.pow(1.2, currentStage - 1)); // 보스는 일반 몬스터보다 훨씬 차별화된 위력의 공격력
       monster.goldReward = Math.floor(100 * Math.pow(1.3, currentStage - 1));
       monster.expReward = Math.floor(150 * Math.pow(1.3, currentStage - 1));
 
@@ -775,7 +807,6 @@
     function deleteUser(index) {
       const targetUser = userDatabase[index];
 
-      // 자기 자신(관리자 계정) 삭제 방지
       if (targetUser.id === currentUser.id) {
         alert('현재 로그인 중인 관리자 계정은 삭제할 수 없습니다!');
         return;
@@ -783,7 +814,7 @@
 
       const inputPw = prompt(`[${targetUser.id}] 계정을 삭제하려면 관리자 비밀번호를 입력하세요:`);
 
-      if (inputPw === null) return; // 취소 누른 경우
+      if (inputPw === null) return;
 
       if (inputPw === currentUser.pw) {
         userDatabase.splice(index, 1);
